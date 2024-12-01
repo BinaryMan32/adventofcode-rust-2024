@@ -1,6 +1,6 @@
 use advent_of_code::{create_runner, named, Named, Runner};
 use num::abs;
-use std::str::Lines;
+use std::{collections::HashMap, str::Lines};
 
 fn parse_lists(input: Lines) -> (Vec<i64>, Vec<i64>) {
     input.map(|line| {
@@ -26,7 +26,15 @@ fn part1(input: Lines) -> String {
 }
 
 fn part2(input: Lines) -> String {
-    input.take(0).count().to_string()
+    let (xs, ys) = parse_lists(input);
+    let y_counts: HashMap<i64, i64> = ys.iter().fold(HashMap::new(), |mut counts, y| {
+        counts.entry(*y).and_modify(|c| *c += 1).or_insert(1);
+        counts
+    });
+    xs.iter()
+        .map(|x| x * y_counts.get(x).unwrap_or(&0))
+        .sum::<i64>()
+        .to_string()
 }
 
 fn main() {
@@ -45,6 +53,6 @@ mod tests {
     fn example() {
         let input = include_str!("example.txt");
         verify!(part1, input, "11");
-        verify!(part2, input, "0");
+        verify!(part2, input, "31");
     }
 }
