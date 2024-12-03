@@ -10,24 +10,43 @@ fn parse_reports(input: Lines) -> Vec<Vec<i8>> {
     input.into_iter().map(parse_report).collect_vec()
 }
 
-fn is_report_delta(report: &Vec<i8>, min: i8, max: i8) -> bool {
-    report.iter().tuple_windows().map(|(a, b)| b - a).all(|d| d >= min && d <= max)
+fn is_report_delta(report: &Vec<i8>, min: i8, max: i8, skip: Option<usize>) -> bool {
+    match skip {
+        Some(s) => report.iter()
+            .enumerate()
+            .filter_map(|(i, n)| (s != i).then_some(n))
+            .tuple_windows()
+            .map(|(a, b)| b - a)
+            .all(|d| d >= min && d <= max),
+        None => report.iter()
+            .tuple_windows()
+            .map(|(a, b)| b - a)
+            .all(|d| d >= min && d <= max)
+    }
 }
 
-fn is_report_safe(report: &Vec<i8>) -> bool {
-    is_report_delta(report, -3, -1) || is_report_delta(report, 1, 3)
+fn is_report_safe(report: &Vec<i8>, skip: Option<usize>) -> bool {
+    is_report_delta(report, -3, -1, skip) || is_report_delta(report, 1, 3, skip)
+}
+
+fn is_dampened_report_safe(report: &Vec<i8>) -> bool {
+    is_report_safe(report, None) || (0..report.len()).any(|n| is_report_safe(report, Some(n)))
 }
 
 fn part1(input: Lines) -> String {
     parse_reports(input)
         .into_iter()
-        .filter(is_report_safe)
+        .filter(|r| is_report_safe(r, None))
         .count()
         .to_string()
 }
 
 fn part2(input: Lines) -> String {
-    input.take(0).count().to_string()
+    parse_reports(input)
+        .into_iter()
+        .filter(is_dampened_report_safe)
+        .count()
+        .to_string()
 }
 
 fn main() {
@@ -46,6 +65,6 @@ mod tests {
     fn example() {
         let input = include_str!("example.txt");
         verify!(part1, input, "2");
-        verify!(part2, input, "0");
+        verify!(part2, input, "4");
     }
 }
