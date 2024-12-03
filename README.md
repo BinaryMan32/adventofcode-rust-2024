@@ -5,8 +5,7 @@ Install Visual Studio Code extensions
 * rust-analyzer
 * Error Lens
 * CodeLLDB (debugger)
-* Better Toml (for `Cargo.toml`)
-* crates (for `Cargo.toml`)
+* Even Better Toml (for `Cargo.toml`)
 
 ## Run from VS Code
 
