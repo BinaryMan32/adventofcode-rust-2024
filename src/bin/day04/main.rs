@@ -81,6 +81,25 @@ impl WordSearch {
             .and_then(|row| row.get(pos.col as usize))
             .copied()
     }
+
+    fn is_ms(a: char, b: char) -> bool {
+        a == 'M' && b == 'S' || a == 'S' && b == 'M'
+    }
+    fn is_x_mas(&self, row: usize, col: usize) -> bool {
+        (self.letters[row][col] == 'A')
+            && Self::is_ms(self.letters[row-1][col-1], self.letters[row+1][col+1])
+            && Self::is_ms(self.letters[row-1][col+1], self.letters[row+1][col-1])
+    }
+
+    fn x_mas_count(&self) -> usize {
+        (1..(self.size.row as usize) - 1)
+            .map(|row| {
+                (1..(self.size.col as usize) - 1)
+                    .filter(|&col| self.is_x_mas(row, col))
+                    .count()
+            })
+            .sum()
+    }
 }
 
 fn part1(input: Lines) -> String {
@@ -88,7 +107,7 @@ fn part1(input: Lines) -> String {
 }
 
 fn part2(input: Lines) -> String {
-    input.take(0).count().to_string()
+    WordSearch::create(input).x_mas_count().to_string()
 }
 
 fn main() {
@@ -158,6 +177,6 @@ mod tests {
     fn example() {
         let input = include_str!("example.txt");
         verify!(part1, input, "18");
-        verify!(part2, input, "0");
+        verify!(part2, input, "9");
     }
 }
