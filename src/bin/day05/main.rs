@@ -24,8 +24,20 @@ impl PageSet {
         )
     }
 
+    fn page_bit(page: Page) -> u128 {
+        1 << page
+    }
+
     fn add(&mut self, page: Page) {
-        self.0 |= 1 << page
+        self.0 |= Self::page_bit(page)
+    }
+
+    fn remove(&mut self, page: Page) {
+        self.0 &= !Self::page_bit(page)
+    }
+
+    fn is_empty(&self) -> bool {
+        self.0 == 0
     }
 
     fn contains_all(&self, other: &PageSet) -> bool {
@@ -51,7 +63,7 @@ impl Rules {
     fn parse(input: &mut Lines) -> Self {
         let mut predecessors = [PageSet::empty(); NUM_PAGES];
         for (before, after) in input.map_while(Self::parse_rule) {
-            predecessors[after as usize].add(before)
+            predecessors[after as usize].add(before);
         }
         Rules{ predecessors }
     }
@@ -66,6 +78,18 @@ impl Rules {
             seen.add(page);
         }
         true
+    }
+
+    fn reorder_update(&self, update: &Update) -> Update {
+        let mut remaining = update.0.clone();
+        let mut remaining_set = update.as_set();
+        let mut ordered = Vec::new();
+        while let Some((next_index, &next)) = remaining.iter().find_position(|&&p| self.predecessors[p as usize].intersect(&remaining_set).is_empty()) {
+            remaining.swap_remove(next_index);
+            remaining_set.remove(next);
+            ordered.push(next);
+        }
+        Update(ordered)
     }
 }
 
@@ -102,7 +126,12 @@ fn part1(input: Lines) -> String {
 }
 
 fn part2(input: Lines) -> String {
-    input.take(0).count().to_string()
+    let (rules, updates) = parse(input);
+    updates.into_iter()
+        .filter(|update| !rules.is_update_valid(update))
+        .map(|update| rules.reorder_update(&update).middle_page() as u64)
+        .sum::<u64>()
+        .to_string()
 }
 
 fn main() {
@@ -124,7 +153,7 @@ mod tests {
     fn example() {
         let input = include_str!("example.txt");
         verify!(part1, input, "143");
-        verify!(part2, input, "0");
+        verify!(part2, input, "123");
     }
 
     #[test]
@@ -186,5 +215,13 @@ mod tests {
         /* The last update, 97,13,75,29,47, is not in the correct order due to
          * breaking several rules. */
         assert!(!rules.is_update_valid(&updates[5]));
+    }
+
+    #[test]
+    fn test_reorder() {
+        let (rules, _) = parse(include_str!("example.txt").lines());
+        assert_eq!(rules.reorder_update(&Update(vec![75,97,47,61,53])), Update(vec![97,75,47,61,53]));
+        assert_eq!(rules.reorder_update(&Update(vec![61,13,29])), Update(vec![61,29,13]));
+        assert_eq!(rules.reorder_update(&Update(vec![97,13,75,29,47])), Update(vec![97,75,47,29,13]));
     }
 }
