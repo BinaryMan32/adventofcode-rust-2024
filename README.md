@@ -6,6 +6,7 @@ Install Visual Studio Code extensions
 * Error Lens
 * CodeLLDB (debugger)
 * Even Better Toml (for `Cargo.toml`)
+* Dependi (formerly `crates`)
 
 ## Run from VS Code
 
