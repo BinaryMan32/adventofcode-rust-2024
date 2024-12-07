@@ -5,7 +5,7 @@ use std::{collections::HashSet, iter::successors, str::Lines};
 
 type Pos = I16Vec2;
 
-#[derive(PartialEq, Clone, Copy, Debug)]
+#[derive(PartialEq, Eq, Clone, Copy, Debug, Hash)]
 struct Guard {
     pos: Pos,
     dir: Direction,
@@ -28,7 +28,7 @@ impl Guard {
         Self{pos: self.pos, dir: self.dir.right()}
     }
 
-    fn next(self, lab_map: &LabMap) -> Option<Self> {
+    fn next<M: LabMap>(self, lab_map: &M) -> Option<Self> {
         let forward_pos = self.forward_pos();
         lab_map.is_obstacle(&forward_pos).map(|is_obstacle| {
             if is_obstacle {
@@ -40,7 +40,7 @@ impl Guard {
     }
 }
 
-#[derive(PartialEq, Clone, Copy, Debug)]
+#[derive(PartialEq, Eq, Clone, Copy, Debug, Hash)]
 enum Direction {
     North,
     South,
@@ -67,17 +67,27 @@ impl Direction {
     }
 }
 
-struct LabMap {
+trait LabMap {
+    fn is_obstacle(&self, pos: &Pos) -> Option<bool>;
+}
+
+struct OriginalMap {
     obstacles: Vec<Vec<bool>>,
     size: Pos,
 }
 
-impl LabMap {
+impl OriginalMap {
     fn new(obstacles: Vec<Vec<bool>>) -> Self {
         let size = Pos{x: obstacles[0].len() as i16, y: obstacles.len() as i16};
         Self{obstacles, size}
     }
 
+    fn add_obstacle(&self, pos: Pos) -> ModifiedMap {
+        ModifiedMap{underlying: self, obstacle: pos}
+    }
+}
+
+impl LabMap for OriginalMap {
     fn is_obstacle(&self, pos: &Pos) -> Option<bool> {
         if pos.x < 0 || pos.x >= self.size.x || pos.y < 0 || pos.y >= self.size.y {
             None
@@ -87,7 +97,22 @@ impl LabMap {
     }
 }
 
-fn parse_input(input: Lines) -> (LabMap, Guard) {
+struct ModifiedMap<'a> {
+    underlying: &'a OriginalMap,
+    obstacle: Pos,
+}
+
+impl LabMap for ModifiedMap<'_> {
+    fn is_obstacle(&self, pos: &Pos) -> Option<bool> {
+        if *pos == self.obstacle {
+            Some(true)
+        } else {
+            self.underlying.is_obstacle(pos)
+        }
+    }
+}
+
+fn parse_input(input: Lines) -> (OriginalMap, Guard) {
     let mut guard_pos: Option<Pos> = None;
     let obstacles = input.enumerate().map(|(y, line)| {
         line.chars().enumerate().map(|(x, c)| {
@@ -102,20 +127,36 @@ fn parse_input(input: Lines) -> (LabMap, Guard) {
             }
         }).collect_vec()
     }).collect_vec();
-    (LabMap::new(obstacles), Guard::new(guard_pos.expect("didn't find guard")))
+    (OriginalMap::new(obstacles), Guard::new(guard_pos.expect("didn't find guard")))
 }
 
 fn part1(input: Lines) -> String {
     let (lab_map, guard_start) = parse_input(input);
-    let mut positions = HashSet::from([guard_start.pos]);
-    for guard in successors(Some(guard_start), |guard| guard.next(&lab_map)) {
+    let mut positions = HashSet::new();
+    for guard in successors(Some(guard_start), |g| g.next(&lab_map)) {
         positions.insert(guard.pos);
     }
     positions.len().to_string()
 }
 
+fn is_guard_stuck_in_loop(guard_start: Guard, lab_map: &ModifiedMap) -> bool {
+    // detect a loop by storing all past guard states
+    let mut guard_states = HashSet::new();
+    for guard in successors(Some(guard_start), |g| g.next(lab_map)) {
+        if !guard_states.insert(guard) {
+            return true
+        }
+    }
+    false
+}
+
 fn part2(input: Lines) -> String {
-    input.take(0).count().to_string()
+    let (lab_map, guard) = parse_input(input);
+    (0..lab_map.size.x)
+        .flat_map(|x| (0..lab_map.size.y).map(move |y| Pos{x, y}))
+        .filter(|&obstacle| is_guard_stuck_in_loop(guard, &lab_map.add_obstacle(obstacle)))
+        .count()
+        .to_string()
 }
 
 fn main() {
@@ -134,6 +175,6 @@ mod tests {
     fn example() {
         let input = include_str!("example.txt");
         verify!(part1, input, "41");
-        verify!(part2, input, "0");
+        verify!(part2, input, "6");
     }
 }
