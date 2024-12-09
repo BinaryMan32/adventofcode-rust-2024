@@ -85,6 +85,14 @@ impl OriginalMap {
     fn add_obstacle(&self, pos: Pos) -> ModifiedMap {
         ModifiedMap{underlying: self, obstacle: pos}
     }
+
+    fn find_visited_positions(&self, guard_start: Guard) -> HashSet<Pos> {
+        let mut positions = HashSet::new();
+        for guard in successors(Some(guard_start), |g| g.next(self)) {
+            positions.insert(guard.pos);
+        }
+        positions
+    }
 }
 
 impl LabMap for OriginalMap {
@@ -132,11 +140,7 @@ fn parse_input(input: Lines) -> (OriginalMap, Guard) {
 
 fn part1(input: Lines) -> String {
     let (lab_map, guard_start) = parse_input(input);
-    let mut positions = HashSet::new();
-    for guard in successors(Some(guard_start), |g| g.next(&lab_map)) {
-        positions.insert(guard.pos);
-    }
-    positions.len().to_string()
+    lab_map.find_visited_positions(guard_start).len().to_string()
 }
 
 fn is_guard_stuck_in_loop(guard_start: Guard, lab_map: &ModifiedMap) -> bool {
@@ -152,16 +156,23 @@ fn is_guard_stuck_in_loop(guard_start: Guard, lab_map: &ModifiedMap) -> bool {
 
 fn part2(input: Lines) -> String {
     let (lab_map, guard) = parse_input(input);
-    (0..lab_map.size.x)
-        .flat_map(|x| (0..lab_map.size.y).map(move |y| Pos{x, y}))
+    lab_map.find_visited_positions(guard)
+        .into_iter()
         .filter(|&obstacle| is_guard_stuck_in_loop(guard, &lab_map.add_obstacle(obstacle)))
         .count()
         .to_string()
 }
 
 fn main() {
-    let input = include_str!("input.txt");
     let runner: &Runner = create_runner!();
+
+    println!("Fred");
+    let input = include_str!("input.txt");
+    runner.run(named!(part1), input);
+    runner.run(named!(part2), input);
+
+    println!("Jared");
+    let input = include_str!("jared_input.txt");
     runner.run(named!(part1), input);
     runner.run(named!(part2), input);
 }
