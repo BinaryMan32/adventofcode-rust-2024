@@ -1,6 +1,6 @@
 use advent_of_code::{create_runner, named, Named, Runner};
 use glam::I16Vec2;
-use itertools::Itertools;
+use itertools::{iterate, Itertools};
 use std::{cmp::max, collections::HashMap, str::Lines};
 
 type Pos = I16Vec2;
@@ -26,11 +26,6 @@ impl AntennaMap {
         Self{size, antennas}
     }
 
-    fn find_antinodes(&self, a: &Pos, b: &Pos) -> [Pos; 2] {
-        let delta = b - a;
-        [a - delta, b + delta]
-    }
-
     fn in_bounds(&self, p: &Pos) -> bool {
         p.x >= 0 && p.x < self.size.x && p.y >= 0 && p.y < self.size.y
     }
@@ -38,7 +33,21 @@ impl AntennaMap {
     fn count_unique_antinodes_in_bounds(&self) -> usize {
         self.antennas.values().flat_map(|positions| {
             positions.iter().tuple_combinations().flat_map(|(a, b)| {
-                self.find_antinodes(a, b)
+                let delta = b - a;
+                [a - delta, b + delta]
+            })
+        })
+        .filter(|p| self.in_bounds(p))
+        .unique()
+        .count()
+    }
+
+    fn count_unique_antinodes_in_bounds_any(&self) -> usize {
+        self.antennas.values().flat_map(|positions| {
+            positions.iter().tuple_combinations().flat_map(|(a, b)| {
+                let delta = b - a;
+                iterate(*a, move |p| *p - delta).take_while(|p| self.in_bounds(p))
+                .chain(iterate(*b, move |p| *p + delta).take_while(|p| self.in_bounds(p)))
             })
         })
         .filter(|p| self.in_bounds(p))
@@ -52,7 +61,7 @@ fn part1(input: Lines) -> String {
 }
 
 fn part2(input: Lines) -> String {
-    input.take(0).count().to_string()
+    AntennaMap::parse(input).count_unique_antinodes_in_bounds_any().to_string()
 }
 
 fn main() {
@@ -71,6 +80,6 @@ mod tests {
     fn example() {
         let input = include_str!("example.txt");
         verify!(part1, input, "14");
-        verify!(part2, input, "0");
+        verify!(part2, input, "34");
     }
 }
