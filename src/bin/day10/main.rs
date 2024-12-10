@@ -39,35 +39,46 @@ impl TrailMap {
                 OFFSETS.iter()
                     .map(|off| pos + off)
                     .flat_map(|p| self.find_trail_ends(p, h + 1))
-                    .unique()
                     .collect_vec()
             }       
         }
     }
 
-    fn trailhead_score(&self, pos: Pos) -> usize {
-        self.find_trail_ends(pos, 0).len()
+    fn trailhead_score(&self, pos: &Pos) -> usize {
+        self.find_trail_ends(*pos, 0).iter().unique().count()
     }
 
-    fn sum_trailhead_scores(&self) -> usize {
+    fn find_trailheads(&self) -> Vec<Pos> {
         self.height.iter().enumerate()
             .flat_map(|(y, row)|{
                 row.iter()
                     .positions(|&h| (h == 0))
                     .map(move |x| Pos::new(x as i16, y as i16))
             })
-            .map(|pos| self.trailhead_score(pos))
-            .sum()
+            .collect_vec()
+    }
+
+    fn trailhead_rating(&self, pos: &Pos) -> usize {
+        self.find_trail_ends(*pos, 0).len()
     }
 }
 
 fn part1(input: Lines) -> String {
-    TrailMap::parse(input).sum_trailhead_scores().to_string()
+    let trail_map = TrailMap::parse(input);
+    trail_map.find_trailheads()
+        .iter()
+        .map(|pos| trail_map.trailhead_score(pos))
+        .sum::<usize>()
+        .to_string()
 }
 
 fn part2(input: Lines) -> String {
-    input.take(0).count().to_string()
-}
+    let trail_map = TrailMap::parse(input);
+    trail_map.find_trailheads()
+        .iter()
+        .map(|pos| trail_map.trailhead_rating(pos))
+        .sum::<usize>()
+        .to_string()}
 
 fn main() {
     let input = include_str!("input.txt");
@@ -92,6 +103,6 @@ mod tests {
     fn example() {
         let input = include_str!("example.txt");
         verify!(part1, input, "36");
-        verify!(part2, input, "0");
+        verify!(part2, input, "81");
     }
 }
