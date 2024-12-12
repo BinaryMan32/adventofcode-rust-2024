@@ -1,7 +1,7 @@
 use advent_of_code::{create_runner, named, Named, Runner};
-use itertools::Itertools;
+use itertools::{iterate, Itertools};
 use num::Integer;
-use std::str::Lines;
+use std::{collections::HashMap, str::Lines};
 
 fn parse_numbers(mut input: Lines) -> Vec<u64> {
     input.next()
@@ -11,44 +11,57 @@ fn parse_numbers(mut input: Lines) -> Vec<u64> {
         .collect_vec()
 }
 
-fn maybe_even_len_str(stone: u64) -> Option<String> {
-    Some(stone.to_string()).filter(|s| s.len().is_even())
+fn build_histogram(stones: Vec<u64>) -> HashMap<u64, usize> {
+    stones.into_iter().fold(HashMap::new(), |mut histogram, stone| {
+        *histogram.entry(stone).or_insert(0) += 1;
+        histogram
+    })
 }
 
-fn split_even_len_str(num: &str) -> [u64; 2] {
-    let mid = num.len() / 2;
-    [&num[..mid], &num[mid..]].map(|n| n.parse().unwrap())
+fn split_even_len_str(stone: u64) -> Option<[u64; 2]> {
+    Some(stone.to_string())
+        .filter(|s| s.len().is_even())
+        .map(|num| {
+            let mid = num.len() / 2;
+            [&num[..mid], &num[mid..]].map(|n| n.parse().unwrap())
+        })
 }
 
-fn count_stones(stone: u64, blinks: usize) -> usize {
-    if blinks == 0 {
-        1
-    } else if stone == 0 {
-        count_stones(1, blinks - 1)
-    } else if let Some(even_len_str) = maybe_even_len_str(stone) {
-        if blinks == 1 {
-            2
-        } else {
-            split_even_len_str(&even_len_str)
-                .map(|n| count_stones(n, blinks - 1))
-                .into_iter()
-                .sum()
-        }
+fn blink_one_stone<F>(stone: u64, mut out: F)
+    where F: FnMut(u64) -> ()
+{
+    if stone == 0 {
+        out(1)
+    } else if let Some(stones) = split_even_len_str(stone) {
+        stones.into_iter().for_each(out);
     } else {
-        count_stones(stone * 2024, blinks - 1)
+        out(stone * 2024)
     }
 }
 
+fn blink_once(stones: &HashMap<u64, usize>) -> HashMap<u64, usize> {
+    let mut next = HashMap::new();
+    for (&stone, count) in stones {
+        blink_one_stone(stone, |stone| *next.entry(stone).or_insert(0) += count);
+    }
+    next
+}
+
+fn blink_many(input: Lines, count: usize) -> usize {
+    iterate(build_histogram(parse_numbers(input)), blink_once)
+        .nth(count)
+        .unwrap()
+        .into_values()
+        .sum()
+
+}
+
 fn part1(input: Lines) -> String {
-    parse_numbers(input)
-        .into_iter()
-        .map(|n| count_stones(n, 25))
-        .sum::<usize>()
-        .to_string()
+    blink_many(input, 25).to_string()
 }
 
 fn part2(input: Lines) -> String {
-    input.take(0).count().to_string()
+    blink_many(input, 75).to_string()
 }
 
 fn main() {
@@ -65,14 +78,18 @@ mod tests {
 
     #[test]
     fn test_split_even_len_str() {
-        assert_eq!(split_even_len_str(&"253000"), [253, 0]);
-        assert_eq!(split_even_len_str(&"512072"), [253, 0]);
+        assert_eq!(split_even_len_str(0), None);
+        assert_eq!(split_even_len_str(12), Some([1, 2]));
+        assert_eq!(split_even_len_str(123), None);
+        assert_eq!(split_even_len_str(1234), Some([12, 34]));
+        assert_eq!(split_even_len_str(12345), None);
+        assert_eq!(split_even_len_str(253000), Some([253, 0]));
+        assert_eq!(split_even_len_str(512072), Some([512, 72]));
     }
 
     #[test]
     fn example() {
         let input = include_str!("example.txt");
         verify!(part1, input, "55312");
-        verify!(part2, input, "0");
     }
 }
