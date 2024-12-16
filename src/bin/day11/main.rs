@@ -28,7 +28,7 @@ fn split_even_len_str(stone: u64) -> Option<[u64; 2]> {
 }
 
 fn blink_one_stone<F>(stone: u64, mut out: F)
-    where F: FnMut(u64) -> ()
+    where F: FnMut(u64)
 {
     if stone == 0 {
         out(1)

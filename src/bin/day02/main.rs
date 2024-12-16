@@ -10,7 +10,7 @@ fn parse_reports(input: Lines) -> Vec<Vec<i8>> {
     input.into_iter().map(parse_report).collect_vec()
 }
 
-fn is_report_delta(report: &Vec<i8>, min: i8, max: i8, skip: Option<usize>) -> bool {
+fn is_report_delta(report: &[i8], min: i8, max: i8, skip: Option<usize>) -> bool {
     match skip {
         Some(s) => report.iter()
             .enumerate()
@@ -25,11 +25,11 @@ fn is_report_delta(report: &Vec<i8>, min: i8, max: i8, skip: Option<usize>) -> b
     }
 }
 
-fn is_report_safe(report: &Vec<i8>, skip: Option<usize>) -> bool {
+fn is_report_safe(report: &[i8], skip: Option<usize>) -> bool {
     is_report_delta(report, -3, -1, skip) || is_report_delta(report, 1, 3, skip)
 }
 
-fn is_dampened_report_safe(report: &Vec<i8>) -> bool {
+fn is_dampened_report_safe(report: &[i8]) -> bool {
     is_report_safe(report, None) || (0..report.len()).any(|n| is_report_safe(report, Some(n)))
 }
 
@@ -44,7 +44,7 @@ fn part1(input: Lines) -> String {
 fn part2(input: Lines) -> String {
     parse_reports(input)
         .into_iter()
-        .filter(is_dampened_report_safe)
+        .filter(|report| is_dampened_report_safe(report))
         .count()
         .to_string()
 }
