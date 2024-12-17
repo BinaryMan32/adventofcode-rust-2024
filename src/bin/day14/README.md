@@ -125,6 +125,6 @@ To determine the safest area, count the number of robots in each quadrant after 
 .1... 1....
 ```
 
-In this example, the quadrants contain `1`, `3`, `4`, and 1` robot. Multiplying these together gives a total safety factor of `12`.
+In this example, the quadrants contain `1`, `3`, `4`, and `1` robot. Multiplying these together gives a total safety factor of `12`.
 
 Predict the motion of the robots in your list within a space which is `101` tiles wide and `103` tiles tall. What will the safety factor be after exactly `100` seconds have elapsed?
