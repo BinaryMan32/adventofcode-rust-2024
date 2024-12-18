@@ -1,8 +1,145 @@
 use advent_of_code::{create_runner, named, Named, Runner};
-use std::str::Lines;
+use itertools::Itertools;
+use std::{collections::VecDeque, iter::repeat_n, ops::Add, str::Lines};
+
+#[derive(Clone, Copy)]
+enum Direction {
+    East = 0,
+    North = 1,
+    West = 2,
+    South = 3,
+}
+
+impl Direction {
+    fn cw(&self) -> Self {
+        match self {
+            Direction::East => Direction::South,
+            Direction::South => Direction::West,
+            Direction::West => Direction::North,
+            Direction::North => Direction::East,
+        }
+    }
+
+    fn ccw(&self) -> Self {
+        match self {
+            Direction::East => Direction::North,
+            Direction::North => Direction::West,
+            Direction::West => Direction::South,
+            Direction::South => Direction::East,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+struct Pos {
+    x: usize,
+    y: usize,
+}
+
+impl Add<Direction> for Pos {
+    type Output = Pos;
+
+    fn add(mut self, rhs: Direction) -> Self::Output {
+        match rhs {
+            Direction::East => self.x += 1,
+            Direction::North => self.y -= 1,
+            Direction::West => self.x -= 1,
+            Direction::South => self.y += 1,
+        }
+        self
+    }
+}
+
+struct Maze {
+    tiles: Vec<Vec<bool>>,
+    size: Pos,
+    start: Pos,
+    end: Pos, 
+}
+
+impl Maze {
+    fn parse(input: Lines) -> Self {
+        let mut start = Pos{x: 0, y: 0};
+        let mut end = Pos{x: 0, y: 0};
+        let tiles = input.into_iter()
+            .enumerate()
+            .map(|(y, row)| {
+                row.chars().enumerate()
+                    .map(|(x, c)| {
+                        match c {
+                            '#' => false,
+                            '.' => true,
+                            'S' => {
+                                start = Pos{x, y};
+                                true
+                            },
+                            'E' => {
+                                end = Pos{x, y};
+                                true
+                            },
+                            u => panic!("unexpected char {u}")
+                        }
+                    })
+                    .collect_vec()
+            })
+            .collect_vec();
+        let size = Pos{x: tiles[0].len(), y: tiles.len()};
+        Self{tiles, size, start, end}
+    }
+    
+    fn is_empty(&self, pos: &Pos) -> bool {
+        self.tiles[pos.y][pos.x]
+    }
+}
+
+type Score = u64;
+
+struct Solver<'a> {
+    maze: &'a Maze,
+    best: Vec<Vec<[Option<Score>; 4]>>,    
+}
+
+impl<'a> Solver<'a> {
+    fn new(maze: &'a Maze) -> Self {
+        let best = repeat_n(
+            repeat_n([None; 4], maze.size.x)
+                .collect_vec(),
+            maze.size.y
+        ).collect_vec();
+        Self{maze, best}
+    }
+
+    fn set_better(&mut self, pos: &Pos, dir: Direction, score: Score) -> bool {
+        let existing = &mut self.best[pos.y][pos.x][dir as usize];
+        if existing.is_none_or(|old| score < old) {
+            *existing = Some(score);
+            true
+        } else {
+            false
+        }
+    }
+
+    fn best_score_at(&self, pos: &Pos) -> Score {
+        *self.best[pos.y][pos.x].iter().flatten().min().expect("didn't reach end")
+    }
+
+    fn min_score_to_end(&mut self) -> Score {
+        let mut traverse = VecDeque::new();
+        traverse.push_back((self.maze.start.clone(), Direction::East, 0));
+        while let Some((pos, dir, score)) = traverse.pop_front() {
+            if self.maze.is_empty(&pos) && self.set_better(&pos, dir, score) {
+                traverse.push_back((pos.clone() + dir, dir, score + 1));
+                traverse.push_back((pos.clone(), dir.cw(), score + 1000));
+                traverse.push_back((pos, dir.ccw(), score + 1000));
+            }
+        }
+        self.best_score_at(&self.maze.end)
+    }
+}
 
 fn part1(input: Lines) -> String {
-    input.take(0).count().to_string()
+    let maze = Maze::parse(input);
+    Solver::new(&maze).min_score_to_end().to_string()
 }
 
 fn part2(input: Lines) -> String {
@@ -22,9 +159,19 @@ mod tests {
     use advent_of_code::verify;
 
     #[test]
+    fn parse() {
+        let maze = Maze::parse(include_str!("example.txt").lines());
+        assert!(!maze.is_empty(&Pos{x: 0, y: 0}));
+        assert!(maze.is_empty(&Pos{x: 1, y: 1}));
+        assert_eq!(maze.size, Pos{x: 15, y: 15});
+        assert_eq!(maze.start, Pos{x: 1, y: 13});
+        assert_eq!(maze.end, Pos{x: 13, y: 1});
+    }
+
+    #[test]
     fn example() {
         let input = include_str!("example.txt");
-        verify!(part1, input, "0");
+        verify!(part1, input, "7036");
         verify!(part2, input, "0");
     }
 }
