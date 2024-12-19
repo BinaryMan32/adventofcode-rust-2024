@@ -1,6 +1,6 @@
 use advent_of_code::{create_runner, named, Named, Runner};
 use itertools::Itertools;
-use std::{collections::VecDeque, iter::repeat_n, ops::Add, str::Lines};
+use std::{collections::{HashSet, VecDeque}, iter::repeat_n, ops::Add, str::Lines};
 
 #[derive(Clone, Copy)]
 enum Direction {
@@ -9,6 +9,12 @@ enum Direction {
     West = 2,
     South = 3,
 }
+const DIRECTIONS: [Direction; 4] = [
+    Direction::East,
+    Direction::North,
+    Direction::West,
+    Direction::South,
+];
 
 impl Direction {
     fn cw(&self) -> Self {
@@ -28,9 +34,18 @@ impl Direction {
             Direction::South => Direction::East,
         }
     }
+
+    fn flip(&self) -> Self {
+        match self {
+            Direction::East => Direction::West,
+            Direction::North => Direction::South,
+            Direction::West => Direction::East,
+            Direction::South => Direction::North,
+        }
+    }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 struct Pos {
     x: usize,
     y: usize,
@@ -96,7 +111,7 @@ type Score = u64;
 
 struct Solver<'a> {
     maze: &'a Maze,
-    best: Vec<Vec<[Option<Score>; 4]>>,    
+    best: Vec<Vec<[Option<Score>; 4]>>,
 }
 
 impl<'a> Solver<'a> {
@@ -135,6 +150,28 @@ impl<'a> Solver<'a> {
         }
         self.best_score_at(&self.maze.end)
     }
+
+    fn find_best_path_tiles(&self, pos: &Pos, dir: Direction, score: Score, tiles: &mut HashSet<Pos>) {
+        if self.best[pos.y][pos.x][dir as usize] == Some(score) {
+            tiles.insert(pos.clone());
+            if score >= 1 {
+                self.find_best_path_tiles(&(pos.clone() + dir.flip()), dir, score - 1, tiles);
+            }
+            if score >= 1000 {
+                self.find_best_path_tiles(pos, dir.cw(), score - 1000, tiles);
+                self.find_best_path_tiles(pos, dir.ccw(), score - 1000, tiles);
+            }
+        }
+    }
+
+    fn tiles_on_best_path(&mut self) -> usize {
+        let best = self.min_score_to_end();
+        let mut visited: HashSet<Pos> = HashSet::new();
+        for &dir in DIRECTIONS.iter() {
+            self.find_best_path_tiles(&self.maze.end, dir, best, &mut visited);
+        }
+        visited.len()
+    }
 }
 
 fn part1(input: Lines) -> String {
@@ -143,7 +180,8 @@ fn part1(input: Lines) -> String {
 }
 
 fn part2(input: Lines) -> String {
-    input.take(0).count().to_string()
+    let maze = Maze::parse(input);
+    Solver::new(&maze).tiles_on_best_path().to_string()
 }
 
 fn main() {
@@ -172,6 +210,13 @@ mod tests {
     fn example() {
         let input = include_str!("example.txt");
         verify!(part1, input, "7036");
-        verify!(part2, input, "0");
+        verify!(part2, input, "45");
+    }
+
+    #[test]
+    fn example2() {
+        let input = include_str!("example2.txt");
+        verify!(part1, input, "11048");
+        verify!(part2, input, "64");
     }
 }
