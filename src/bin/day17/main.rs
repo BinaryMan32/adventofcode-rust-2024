@@ -129,7 +129,7 @@ impl Computer {
              * by commas.)
              */
             5 => {
-                self.output.push(self.combo_operand(instruction.opcode) % 8);
+                self.output.push(self.combo_operand(instruction.operand) % 8);
                 self.instruction_pointer + 2
             }
             /* The bdv instruction (opcode 6) works exactly like the adv instruction except that
