@@ -10,11 +10,13 @@ struct Instruction {
     operand: u8,
 }
 
+#[derive(Clone)]
 struct Computer {
     registers: [Integer; 3],
     instructions: Vec<u8>,
     instruction_pointer: usize,
-    output: Vec<Integer>,
+    output: Vec<u8>,
+    expect_instructions: bool,
 }
 
 impl Computer {
@@ -43,7 +45,8 @@ impl Computer {
             .collect_vec();
         let instruction_pointer = 0;
         let output = Vec::new();
-        Self{registers, instructions, instruction_pointer, output}
+        let expect_instructions = false;
+        Self{registers, instructions, instruction_pointer, output, expect_instructions}
     }
 
     fn run(&mut self) {
@@ -129,8 +132,14 @@ impl Computer {
              * by commas.)
              */
             5 => {
-                self.output.push(self.combo_operand(instruction.operand) % 8);
-                self.instruction_pointer + 2
+                let output = (self.combo_operand(instruction.operand) % 8) as u8;
+                println!("output: {output}");
+                if self.expect_instructions && self.instructions.get(self.output.len()).is_none_or(|&expected| expected != output) {
+                    self.instructions.len()
+                } else {
+                    self.output.push(output);
+                    self.instruction_pointer + 2
+                }
             }
             /* The bdv instruction (opcode 6) works exactly like the adv instruction except that
              * the result is stored in the B register. (The numerator is still read from the A
@@ -168,7 +177,17 @@ fn part1(input: Lines) -> String {
 }
 
 fn part2(input: Lines) -> String {
-    input.take(0).count().to_string()
+    let orig_computer = Computer::parse(input);
+    (0..)
+        .find(|&a| {
+            let mut computer = orig_computer.clone();
+            computer.registers[0] = a as Integer;
+            computer.expect_instructions = true;
+            computer.run();
+            computer.output == orig_computer.instructions
+        })
+        .unwrap()
+        .to_string()
 }
 
 fn main() {
@@ -187,6 +206,6 @@ mod tests {
     fn example() {
         let input = include_str!("example.txt");
         verify!(part1, input, "4,6,3,5,6,3,5,2,1,0");
-        verify!(part2, input, "0");
+        verify!(part2, input, "117440");
     }
 }
