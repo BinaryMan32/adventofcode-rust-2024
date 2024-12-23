@@ -11,6 +11,10 @@ const DIRECTIONS: [Pos; 4] = [
     Pos::new(0, 1),
 ];
 
+fn pos_to_string(pos: &Pos) -> String {
+    format!("{x},{y}", x=pos.x, y=pos.y)
+}
+
 struct Input {
     part1_size: usize,
     coordinates: Vec<Pos>,
@@ -55,10 +59,13 @@ impl<'a> Space<'a> {
         ).collect_vec();
         Self{input, corrupted, steps}
     }
-    fn corrupt(&mut self, n: usize) {
+    fn corrupt_first_n(&mut self, n: usize) {
         for pos in self.input.coordinates.iter().take(n) {
-            self.corrupted[pos.y as usize][pos.x as usize] = true;
+            self.corrupt(pos);
         }
+    }
+    fn corrupt(&mut self, pos: &Pos) {
+        self.corrupted[pos.y as usize][pos.x as usize] = true;
     }
     fn is_safe(&self, pos: &Pos) -> bool {
         pos.x >= 0 && pos.x < self.input.size.x
@@ -74,9 +81,11 @@ impl<'a> Space<'a> {
             false
         }
     }
-    fn min_steps(&mut self) -> usize {
+    fn min_steps(&mut self) -> Option<usize> {
         let mut traverse = VecDeque::new();
-
+        if self.steps[0][0].is_some() {
+            self.steps.iter_mut().for_each(|row| row.fill(None));
+        }
         traverse.push_back((Pos::new(0, 0), 0));
         while let Some((pos, steps)) = traverse.pop_front() {
             if self.set_better(&pos, steps) {
@@ -88,19 +97,29 @@ impl<'a> Space<'a> {
                 }
             }
         }
-        self.steps[self.input.size.y as usize - 1][self.input.size.x as usize - 1].expect("exit visited")
+        self.steps[self.input.size.y as usize - 1][self.input.size.x as usize - 1]
     }
 }
 
 fn part1(input: Lines) -> String {
     let input = Input::parse(input);
     let mut space = Space::new(&input);
-    space.corrupt(input.part1_size);
-    space.min_steps().to_string()
+    space.corrupt_first_n(input.part1_size);
+    space.min_steps().expect("exit visited").to_string()
 }
 
 fn part2(input: Lines) -> String {
-    input.take(0).count().to_string()
+    let input = Input::parse(input);
+    let mut space = Space::new(&input);
+    space.corrupt_first_n(input.part1_size);
+    pos_to_string(
+        input.coordinates[input.part1_size..].iter()
+        .find(|pos| {
+            space.corrupt(pos);
+            space.min_steps().is_none()
+        })
+        .expect("some blocked")
+    )
 }
 
 fn main() {
@@ -119,6 +138,6 @@ mod tests {
     fn example() {
         let input = include_str!("example.txt");
         verify!(part1, input, "22");
-        verify!(part2, input, "0");
+        verify!(part2, input, "6,1");
     }
 }
