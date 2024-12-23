@@ -4,15 +4,14 @@ use num::pow;
 use std::str::Lines;
 
 type Integer = u32;
-
+type Registers = [Integer; 3];
 struct Instruction {
     opcode: u8,
     operand: u8,
 }
 
-#[derive(Clone)]
 struct Computer {
-    registers: [Integer; 3],
+    registers: Registers,
     instructions: Vec<u8>,
     instruction_pointer: usize,
     output: Vec<u8>,
@@ -47,6 +46,12 @@ impl Computer {
         let output = Vec::new();
         let expect_instructions = false;
         Self{registers, instructions, instruction_pointer, output, expect_instructions}
+    }
+
+    fn reset(&mut self, registers: &Registers) {
+        self.registers = *registers;
+        self.instruction_pointer = 0;
+        self.output.clear();
     }
 
     fn run(&mut self) {
@@ -133,7 +138,6 @@ impl Computer {
              */
             5 => {
                 let output = (self.combo_operand(instruction.operand) % 8) as u8;
-                println!("output: {output}");
                 if self.expect_instructions && self.instructions.get(self.output.len()).is_none_or(|&expected| expected != output) {
                     self.instructions.len()
                 } else {
@@ -177,14 +181,15 @@ fn part1(input: Lines) -> String {
 }
 
 fn part2(input: Lines) -> String {
-    let orig_computer = Computer::parse(input);
+    let mut computer = Computer::parse(input);
+    let mut registers = computer.registers;
+    computer.expect_instructions = true;
     (0..)
         .find(|&a| {
-            let mut computer = orig_computer.clone();
-            computer.registers[0] = a as Integer;
-            computer.expect_instructions = true;
+            registers[0] = a;
+            computer.reset(&registers);
             computer.run();
-            computer.output == orig_computer.instructions
+            computer.output == computer.instructions
         })
         .unwrap()
         .to_string()
@@ -206,6 +211,11 @@ mod tests {
     fn example() {
         let input = include_str!("example.txt");
         verify!(part1, input, "4,6,3,5,6,3,5,2,1,0");
+    }
+
+    #[test]
+    fn example2() {
+        let input = include_str!("example2.txt");
         verify!(part2, input, "117440");
     }
 }

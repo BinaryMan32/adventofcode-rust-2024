@@ -67,11 +67,14 @@ Digging deeper in the device's manual, you discover the problem: this program is
 
 For example:
 
+```
 Register A: 2024
 Register B: 0
 Register C: 0
 
 Program: 0,3,5,4,3,0
-This program outputs a copy of itself if register A is instead initialized to 117440. (The original initial value of register A, 2024, is ignored.)
+```
+
+This program outputs a copy of itself if register A is instead initialized to `117440`. (The original initial value of register A, `2024`, is ignored.)
 
 What is the lowest positive initial value for register A that causes the program to output a copy of itself?
