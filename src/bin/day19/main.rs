@@ -1,6 +1,6 @@
 use advent_of_code::{create_runner, named, Named, Runner};
 use itertools::Itertools;
-use std::{collections::HashMap, str::Lines};
+use std::{collections::HashMap, fmt::{Debug, Display, Write}, str::Lines};
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
 enum Color {
@@ -25,6 +25,22 @@ impl Color {
 
     fn parse_str(s: &str) -> Vec<Self> {
         s.chars().map(Self::parse_char).collect_vec()
+    }
+
+    fn as_char(&self) -> char {
+        match self {
+            Self::White => 'w',
+            Self::Blue => 'u',
+            Self::Black => 'b',
+            Self::Red => 'r',
+            Self::Green => 'g',
+        }
+    }
+}
+
+impl Display for Color {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_char(self.as_char())
     }
 }
 
@@ -85,6 +101,16 @@ impl PatternNode {
                 || self.is_end && root.can_display_aux(design, root)
         }
     }
+    fn count_ways_to_display(&self, design: &[Color]) -> usize {
+        self.count_ways_to_display_aux(design, self)
+    }
+    fn count_ways_to_display_aux(&self, design: &[Color], root: &Self) -> usize {
+        match design.first() {
+            None => if self.is_end { 1 } else { 0 },
+            Some(c) => self.next.get(c).map(|p| p.count_ways_to_display_aux(&design[1..], root)).unwrap_or(0)
+                + if self.is_end {root.count_ways_to_display_aux(design, root)} else {0}
+        } 
+    }
 }
 
 fn part1(input: Lines) -> String {
@@ -97,7 +123,16 @@ fn part1(input: Lines) -> String {
 }
 
 fn part2(input: Lines) -> String {
-    input.take(0).count().to_string()
+    let input = Input::parse(input);
+    let patterns = PatternNode::new(input.patterns);
+    input.designs.iter()
+        .map(|design| {
+            let count = patterns.count_ways_to_display(design);
+            println!("{count} {d}", d=design.iter().join(""));
+            count
+        })
+        .sum::<usize>()
+        .to_string()
 }
 
 fn main() {
@@ -116,6 +151,6 @@ mod tests {
     fn example() {
         let input = include_str!("example.txt");
         verify!(part1, input, "6");
-        verify!(part2, input, "0");
+        verify!(part2, input, "16");
     }
 }
