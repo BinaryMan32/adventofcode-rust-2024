@@ -1,6 +1,6 @@
 use advent_of_code::{create_runner, named, Named, Runner};
 use itertools::Itertools;
-use std::{collections::HashMap, fmt::{Debug, Display, Write}, str::Lines};
+use std::{collections::HashMap, fmt::{Display, Write}, str::Lines};
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
 enum Color {
