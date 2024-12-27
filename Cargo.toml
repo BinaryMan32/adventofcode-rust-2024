@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 glam = "0.29.2"
 itertools = "0.13.0"
-lazy-regex = "3.1.0"
+lazy-regex = "3.4.1"
 num = "0.4.1"
+phf = { version = "0.11.2", features = ["macros"] }
 rstest = "0.23.0"
