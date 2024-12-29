@@ -72,6 +72,16 @@ impl Racetrack {
             Pos{x: pos.x, y: pos.y + 1},
         ].map(|neighbor| (neighbor, self.get_cell(neighbor)))
     }
+
+    fn cells_within_distance(&self, center: Pos, max_distance: u8) -> Vec<Pos> {
+        (center.y.saturating_sub(max_distance)..=(center.y + max_distance).min(self.size.y - 1))
+            .flat_map(|y| {
+                let x_distance = max_distance - center.y.abs_diff(y);
+                (center.x.saturating_sub(x_distance)..=(center.x + x_distance).min(self.size.x - 1))
+                    .map(move |x| Pos{x, y})
+            })
+            .collect_vec()
+    }
  }
 
 struct TimeSolver<'a> {
@@ -125,7 +135,11 @@ impl<'a> TimeSolver<'a> {
     }
 }
 
-fn get_cheat_histogram(racetrack: Racetrack) -> HashMap<usize, usize> {
+fn manhattan_distance(a: Pos, b: Pos) -> u8 {
+    a.x.abs_diff(b.x) + a.y.abs_diff(b.y)
+}
+
+fn get_cheat_histogram(racetrack: Racetrack, max_cheat: u8, threshold: usize) -> HashMap<usize, usize> {
     let mut histogram = HashMap::new();
     let from_start = TimeSolver::solve(&racetrack, racetrack.start);
     let from_end = TimeSolver::solve(&racetrack, racetrack.end);
@@ -135,17 +149,13 @@ fn get_cheat_histogram(racetrack: Racetrack) -> HashMap<usize, usize> {
         for x in 0..racetrack.size.x {
             let start_pos = Pos{x, y};
             if let Some(start_time) = from_start.get_time(start_pos) {
-                for (cheat_start_pos, kind) in racetrack.neighbors(start_pos) {
-                    if kind == CellKind::Wall {
-                        for (cheat_end_pos, _kind) in racetrack.neighbors(cheat_start_pos) {
-                            // a path to the end without cheating implies CellKind::Track
-                            if let Some(end_time) = from_end.get_time(cheat_end_pos) {    
-                                let time_with_cheat = 2 + start_time + end_time;
-                                let saved = best_time_without_cheat.saturating_sub(time_with_cheat);
-                                if saved > 0 {
-                                    *histogram.entry(saved).or_default() += 1;
-                                }
-                            }
+                for cheat_end_pos in racetrack.cells_within_distance(start_pos, max_cheat) {
+                    if let Some(end_time) = from_end.get_time(cheat_end_pos) {
+                        let cheat_time = manhattan_distance(start_pos, cheat_end_pos) as usize;
+                        let time_with_cheat = cheat_time + start_time + end_time;
+                        let saved = best_time_without_cheat.saturating_sub(time_with_cheat);
+                        if saved >= threshold && saved > 0 {
+                            *histogram.entry(saved).or_default() += 1;
                         }
                     }
                 }
@@ -157,15 +167,18 @@ fn get_cheat_histogram(racetrack: Racetrack) -> HashMap<usize, usize> {
 
 fn part1(input: Lines) -> String {
     let racetrack = Racetrack::parse(input);
-    get_cheat_histogram(racetrack)
-        .into_iter()
-        .filter_map(|(saved, count)| (saved >= 100).then_some(count))
+    get_cheat_histogram(racetrack, 2, 100)
+        .into_values()
         .sum::<usize>()
         .to_string()
 }
 
 fn part2(input: Lines) -> String {
-    input.take(0).count().to_string()
+    let racetrack = Racetrack::parse(input);
+    get_cheat_histogram(racetrack, 20, 100)
+        .into_values()
+        .sum::<usize>()
+        .to_string()
 }
 
 fn main() {
@@ -181,10 +194,10 @@ mod tests {
     use advent_of_code::verify;
 
     #[test]
-    fn test_get_cheat_histogram() {
+    fn test_get_cheat_histogram_part1() {
         let racetrack = Racetrack::parse(include_str!("example.txt").lines());
         assert_eq!(
-            get_cheat_histogram(racetrack),
+            get_cheat_histogram(racetrack, 2, 0),
             [
                 (2, 14), // There are 14 cheats that save 2 picoseconds.
                 (4, 14), // There are 14 cheats that save 4 picoseconds.
@@ -197,6 +210,30 @@ mod tests {
                 (38, 1), // There is one cheat that saves 38 picoseconds.
                 (40, 1), // There is one cheat that saves 40 picoseconds.
                 (64, 1), // There is one cheat that saves 64 picoseconds.
+            ].into_iter().collect()
+        );
+    }
+
+    #[test]
+    fn test_get_cheat_histogram_part2() {
+        let racetrack = Racetrack::parse(include_str!("example.txt").lines());
+        assert_eq!(
+            get_cheat_histogram(racetrack, 20, 50),
+            [
+                (50, 32), // There are 32 cheats that save 50 picoseconds.
+                (52, 31), // There are 31 cheats that save 52 picoseconds.
+                (54, 29), // There are 29 cheats that save 54 picoseconds.
+                (56, 39), // There are 39 cheats that save 56 picoseconds.
+                (58, 25), // There are 25 cheats that save 58 picoseconds.
+                (60, 23), // There are 23 cheats that save 60 picoseconds.
+                (62, 20), // There are 20 cheats that save 62 picoseconds.
+                (64, 19), // There are 19 cheats that save 64 picoseconds.
+                (66, 12), // There are 12 cheats that save 66 picoseconds.
+                (68, 14), // There are 14 cheats that save 68 picoseconds.
+                (70, 12), // There are 12 cheats that save 70 picoseconds.
+                (72, 22), // There are 22 cheats that save 72 picoseconds.
+                (74, 4), // There are 4 cheats that save 74 picoseconds.
+                (76, 3), // There are 3 cheats that save 76 picoseconds.
             ].into_iter().collect()
         );
     }
