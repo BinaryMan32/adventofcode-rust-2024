@@ -1,11 +1,10 @@
 use advent_of_code::{create_runner, named, Named, Runner};
-use glam::IVec2;
+use glam::{DMat2, DVec2, U64Vec2};
 use itertools::Itertools;
 use lazy_regex::{lazy_regex, Captures, Lazy, Regex};
-use num::integer::div_rem;
 use std::str::Lines;
 
-type Pos = IVec2;
+type Pos = U64Vec2;
 
 #[derive(Debug, PartialEq)]
 struct Machine {
@@ -46,32 +45,38 @@ impl Machine {
             .collect_vec()
     }
 
+    fn offset_prize(&self, offset: u64) -> Self {
+        Self{prize: self.prize + offset, ..*self}
+    }
+
+    const COST: DVec2 = DVec2{x: 3.0, y: 1.0};
+
     /**
      * Determine the minimum number of tokens to spend to move from (0, 0)
      * to the prize location.
-     * tokens = 3 * A + B
-     * equations for button presses to reach prize:
-     * px = ax * A + bx * B
-     * py = ay * A + by * B
-     * Solve for B:
-     * (py - ay * A) / by = B
-     * Substituting B
-     * px = ax * A + bx * (py - ay * A) / by
-     * Multiply by
-     * px * by = ax * by * A + bx * (py - ay * A)
-     * Distribute bx
-     * px * by = ax * by * A + bx * py - bx * ay * A
-     * Collect
-     * px * by - bx * py = A * (bx * py - bx * ay)
-     * In the end, brute force is just easier
+     *
+     * This can be written as a system of equations where `x` is unknown:
+     * A * x = b
+     *
+     * This expands to the following, where `pa` and `pb` are the number of
+     * button presses for the `A` and `B` buttons:
+     *
+     *  /       \   /  \     /       \
+     * | a.x b.x | | pa | = | prize.x |
+     * | a.y b.y | | pb |   | prize.y |
+     *  \       /   \  /     \       /
+     *
+     * Apply https://en.wikipedia.org/wiki/Cramer%27s_rule to solve.
      */
-    fn min_cost(&self) -> Option<i32> {
-        (0..=100).flat_map(|a| {
-            let remainder = self.prize - a * self.a;
-            let (bx, bxr) = div_rem(remainder.x, self.b.x);
-            let (by, byr) = div_rem(remainder.y, self.b.y);
-            (bxr == 0 && byr == 0 && bx == by).then_some(3 * a + bx)
-        }).min()
+    #[allow(non_snake_case)] 
+    fn min_cost(&self) -> Option<u64> {
+        let A = DMat2::from_cols(self.a.as_dvec2(), self.b.as_dvec2());
+        let b = self.prize.as_dvec2();
+        let presses = DVec2::new(
+            DMat2::from_cols(b, A.col(1)).determinant(),
+            DMat2::from_cols(A.col(0), b).determinant()
+        ) / A.determinant();
+        (presses.trunc() == presses).then_some(presses.dot(Self::COST) as u64)
     }
 }
 
@@ -79,12 +84,17 @@ fn part1(input: Lines) -> String {
     Machine::parse_all(input)
         .into_iter()
         .flat_map(|m| m.min_cost())
-        .sum::<i32>()
+        .sum::<u64>()
         .to_string()
 }
 
 fn part2(input: Lines) -> String {
-    input.take(0).count().to_string()
+    Machine::parse_all(input)
+        .into_iter()
+        .map(|m| m.offset_prize(10000000000000))
+        .flat_map(|m| m.min_cost())
+        .sum::<u64>()
+        .to_string()
 }
 
 fn main() {
@@ -128,9 +138,23 @@ mod tests {
     }
 
     #[test]
+    fn test_part2_wins() {
+        // No solution given for the example in part 2, but it does say:
+        // Now, it is only possible to win a prize on the second and fourth claw machines.
+        assert_eq!(
+            Machine::parse_all(include_str!("example.txt").lines())
+                .into_iter()
+                .map(|m| m.offset_prize(10000000000000))
+                .map(|m| m.min_cost().is_some())
+                .collect_vec(),
+            [false, true, false, true]
+        );
+    }
+
+    #[test]
     fn example() {
         let input = include_str!("example.txt");
         verify!(part1, input, "480");
-        verify!(part2, input, "0");
+        verify!(part2, input, "875318608908");
     }
 }
