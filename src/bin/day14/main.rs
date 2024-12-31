@@ -2,7 +2,7 @@ use advent_of_code::{create_runner, named, Named, Runner};
 use glam::IVec2;
 use itertools::Itertools;
 use lazy_regex::{lazy_regex, Lazy, Regex};
-use std::{cmp::Ordering, str::Lines};
+use std::{cmp::Ordering, iter::successors, str::Lines};
 type Pos = IVec2;
 type Comp = i32;
 struct Robot {
@@ -58,6 +58,16 @@ impl RestroomMap {
             .collect_vec()
     }
 
+    fn advance_positions_until_no_overlap(&self) -> usize {
+        successors(
+            Some(self.initial_positions()),
+            |positions| {
+                Some(self.advance_positions(positions, 1))
+                    .filter(|next| !next.iter().all_unique())
+            }
+        ).count()
+    }
+
     fn quadrant_component(component: Comp, mid: Comp, weight: usize) -> Option<usize> {
         match component.cmp(&mid) {
             Ordering::Less => Some(0),
@@ -90,8 +100,14 @@ fn part1(input: Lines) -> String {
     map.safety_factor(&positions).to_string()
 }
 
+/**
+ * Apparently
+ * > the robots should arrange themselves into a picture of a Christmas tree
+ * is equivalent to getting to a state where no robots overlap.
+ */
 fn part2(input: Lines) -> String {
-    input.take(0).count().to_string()
+    let map = RestroomMap::parse(input);
+    map.advance_positions_until_no_overlap().to_string()
 }
 
 fn main() {
@@ -116,6 +132,6 @@ mod tests {
     fn example() {
         let input = include_str!("example.txt");
         verify!(part1, input, "12");
-        verify!(part2, input, "0");
+        // part 2 not testable
     }
 }
