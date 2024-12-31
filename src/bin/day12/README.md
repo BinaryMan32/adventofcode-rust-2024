@@ -149,6 +149,6 @@ The larger example from before now has the following updated prices:
 - A region of M plants with price 5 * 6 = 30.
 - A region of S plants with price 3 * 6 = 18.
 
-Adding these together produces its new total price of 1206.
+Adding these together produces its new total price of `1206`.
 
 What is the new total price of fencing all regions on your map?
