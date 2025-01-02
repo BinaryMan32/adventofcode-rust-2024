@@ -1,52 +1,10 @@
 use advent_of_code::{create_runner, named, Named, Runner};
 use itertools::Itertools;
-use std::{collections::HashMap, fmt::{Display, Write}, str::Lines};
-
-#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Copy)]
-enum Color {
-    White,
-    Blue,
-    Black,
-    Red,
-    Green,
-}
-
-impl Color {
-    fn parse_char(c: char) -> Self {
-        match c {
-            'w' => Self::White,
-            'u' => Self::Blue,
-            'b' => Self::Black,
-            'r' => Self::Red,
-            'g' => Self::Green,
-            p => panic!("unrecognized color code {p}")
-        }
-    }
-
-    fn parse_str(s: &str) -> Vec<Self> {
-        s.chars().map(Self::parse_char).collect_vec()
-    }
-
-    fn as_char(&self) -> char {
-        match self {
-            Self::White => 'w',
-            Self::Blue => 'u',
-            Self::Black => 'b',
-            Self::Red => 'r',
-            Self::Green => 'g',
-        }
-    }
-}
-
-impl Display for Color {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_char(self.as_char())
-    }
-}
+use std::{iter::repeat, str::Lines};
 
 struct Input {
-    patterns: Vec<Vec<Color>>,
-    designs: Vec<Vec<Color>>,
+    patterns: Vec<String>,
+    designs: Vec<String>,
 }
 
 impl Input {
@@ -54,85 +12,48 @@ impl Input {
         let patterns = input.next()
             .expect("patterns on first line")
             .split(", ")
-            .map(Color::parse_str)
             .sorted()
+            .map(|s| s.to_owned())
             .collect_vec();
         let designs = input.skip(1)
-            .map(Color::parse_str)
+            .map(|s| s.to_owned())
             .collect_vec();
         Self{patterns, designs}
     }
     
-}
-
-
-#[derive(Default)]
-struct PatternNode {
-    next: HashMap<Color, PatternNode>,
-    is_end: bool,    
-}
-
-impl PatternNode {
-    fn new(patterns: Vec<Vec<Color>>) -> Self {
-        Self::new_from_slice(
-            patterns.iter()
-                .map(|p| &p[..])
-                .collect_vec()
-        )
-    }
-    fn new_from_slice(patterns: Vec<&[Color]>) -> Self {
-        let mut out: PatternNode = Default::default();
-        for (first, group) in &patterns.into_iter().chunk_by(|p| p.first()) {
-            if let Some(c) = first {
-                out.next.insert(*c, Self::new_from_slice(group.map(|p| &p[1..]).collect_vec()));
-            } else {
-                out.is_end = true;
+    fn count_ways_to_display_design(&self, design: &str) -> usize {
+        // matches[i] stores the number of ways to display design[..i]
+        let mut matches: Vec<usize> = Vec::from_iter(repeat(0).take(design.len() + 1));
+        matches[0] = 1;
+        for i in 0..design.len() {
+            for pattern in &self.patterns {
+                if design[i..].starts_with(pattern) {
+                    matches[i + pattern.len()] += matches[i];
+                }
             }
         }
-        out
+        matches[design.len()]
     }
-    fn can_display(&self, design: &[Color]) -> bool {
-        self.can_display_aux(design, self)
+
+    fn count_can_display(&self) -> usize {
+        self.designs.iter()
+            .filter(|design| self.count_ways_to_display_design(design) > 0)
+            .count()
     }
-    fn can_display_aux(&self, design: &[Color], root: &Self) -> bool {
-        match design.first() {
-            None => self.is_end,
-            Some(c) => self.next.get(c).is_some_and(|p| p.can_display_aux(&design[1..], root))
-                || self.is_end && root.can_display_aux(design, root)
-        }
-    }
-    fn count_ways_to_display(&self, design: &[Color]) -> usize {
-        self.count_ways_to_display_aux(design, self)
-    }
-    fn count_ways_to_display_aux(&self, design: &[Color], root: &Self) -> usize {
-        match design.first() {
-            None => if self.is_end { 1 } else { 0 },
-            Some(c) => self.next.get(c).map(|p| p.count_ways_to_display_aux(&design[1..], root)).unwrap_or(0)
-                + if self.is_end {root.count_ways_to_display_aux(design, root)} else {0}
-        } 
+
+    fn count_ways_to_display(&self) -> usize {
+        self.designs.iter()
+            .map(|design| self.count_ways_to_display_design(design))
+            .sum()
     }
 }
 
 fn part1(input: Lines) -> String {
-    let input = Input::parse(input);
-    let patterns = PatternNode::new(input.patterns);
-    input.designs.into_iter()
-        .filter(|d| patterns.can_display(d))
-        .count()
-        .to_string()
+    Input::parse(input).count_can_display().to_string()
 }
 
 fn part2(input: Lines) -> String {
-    let input = Input::parse(input);
-    let patterns = PatternNode::new(input.patterns);
-    input.designs.iter()
-        .map(|design| {
-            let count = patterns.count_ways_to_display(design);
-            println!("{count} {d}", d=design.iter().join(""));
-            count
-        })
-        .sum::<usize>()
-        .to_string()
+    Input::parse(input).count_ways_to_display().to_string()
 }
 
 fn main() {
