@@ -98,104 +98,65 @@ static DIRECTIONAL_KEY_MAP: KeyMap = KeyMap{
     invalid_position: Pos{x: 0, y: 0},
 };
 
-struct KeyPadController<'a> {
-    robot: Option<&'a mut KeyPadController<'a>>,
+struct KeyPadController {
+    robot: Option<Box<KeyPadController>>,
     keypad: &'static KeyMap,
-    cache: HashMap<String, Vec<String>>,
+    cache: HashMap<String, usize>,
 }
 
-impl<'a> KeyPadController<'a> {
-    fn new(keypad: &'static KeyMap, robot: Option<&'a mut KeyPadController<'a>>) -> Self {
+impl KeyPadController {
+    fn new(keypad: &'static KeyMap, robot: Option<KeyPadController>) -> Self {
         Self {
             keypad,
-            robot,
+            robot: robot.map(Box::new),
             cache: HashMap::new(),
         }
     }
 
-    fn sequence_cached(&mut self, seq: &str) -> Vec<String> {
+    fn sequence_cached(&mut self, seq: &str) -> usize {
         match self.cache.get(seq) {
             None => {
                 let result = self.sequence(seq);
-                self.cache.insert(seq.to_owned(), result.clone());
+                self.cache.insert(seq.to_owned(), result);
                 result
             },
-            Some(result) => result.clone()
+            Some(result) => *result
         }
     }
 
-    fn parent_sequence(&mut self, seq: String) -> Vec<String> {
+    fn parent_sequence(&mut self, seq: String) -> usize {
         match self.robot.as_mut() {
-            None => vec![seq],
-            Some(parent) => {
-                let mut result = parent.sequence_cached(&seq);
-                result.push(seq);
-                result
-            },
+            None => seq.len(),
+            Some(parent) => parent.sequence_cached(&seq),
         }
     }
 
-    fn best_path_from(&mut self, a: char, b: char) -> Vec<String> {
+    fn best_path_from(&mut self, a: char, b: char) -> usize {
         self.keypad.valid_paths(a, b)
             .into_iter()
             .map(|path| self.parent_sequence(path))
-            .min_by_key(|paths| paths[0].len())
+            .min()
             .unwrap()
     }
 
-    fn sequence(&mut self, seq: &str) -> Vec<String> {
+    fn sequence(&mut self, seq: &str) -> usize {
         once('A')
             .chain(seq.chars())
             .tuple_windows()
             .map(|(a, b)| self.best_path_from(a, b))
-            .reduce(|a, b| {
-                a.into_iter().zip(b.into_iter())
-                    .map(|(a, b)| a + &b)
-                    .collect_vec()
-            })
-            .unwrap()
+            .sum()
     }
 }
 
 
-/*
- * The example `029A` contains one move from 2 to 9 which requires moving on
- * both axes. From the perspective of the numeric keypad, all permutations of
- * `>^^` are equally valid, but do they fare differently from the controlling
- * directional keypad?
- * 
- * >^^A - vA <^A A >A 
- * ^>^A - <A >vA <^A >A
- * ^^>A - <A A >vA >A
- * 
- * The middle ordering is obviously bad since it splits up pressing the same
- * button which could otherwise be handled with a single button press. The
- * others appear to be roughly equivalent, but we can't tell the relative
- * differences without expanding one more time. At this level a human is
- * pressing buttons directly so ordering is irrelevant.
- * 
- * vA <^A - [ <vA >^A ] [ v<<A >^A >A ] 
- * <A >vA - [ v<<A >>^A ] [ vA <A >^A ]
- * 
- * This seems to suggest that each keypad can be done independently as long
- * as all moves on one axis are done first.
- */
-fn shortest_button_sequence(code: &str) -> Vec<String> {
-    let mut stage1 = &mut KeyPadController::new(
-        &DIRECTIONAL_KEY_MAP,
-        None
-    );
-    let mut stage2 = KeyPadController::new(
-        &DIRECTIONAL_KEY_MAP,
-        Some(&mut stage1)
-    );
-    let mut stage3 = KeyPadController::new(
-        &NUMERIC_KEY_MAP,
-        Some(&mut stage2)
-    );
-    let mut seqs = stage3.sequence(code);
-    seqs.push(code.to_owned());
-    seqs
+fn shortest_button_sequence(code: &str, directional_robots: usize) -> usize {
+    repeat_n(&DIRECTIONAL_KEY_MAP, directional_robots - 1)
+        .chain(once(&NUMERIC_KEY_MAP))
+        .fold(
+            KeyPadController::new(&DIRECTIONAL_KEY_MAP, None),
+            |chain, keymap| KeyPadController::new(keymap, Some(chain)),
+        )
+        .sequence(code)
 }
 
 fn code_complexity_sequence(code: &str, sequence_len: usize) -> usize {
@@ -203,19 +164,25 @@ fn code_complexity_sequence(code: &str, sequence_len: usize) -> usize {
     numeric_code * sequence_len
 }
 
-fn code_complexity(code: &str) -> usize {
-    code_complexity_sequence(code, shortest_button_sequence(code)[0].len())
+fn code_complexity(code: &str, directional_robots: usize) -> usize {
+    code_complexity_sequence(
+        code,
+         shortest_button_sequence(code, directional_robots)
+    )
 }
 
 fn part1(input: Lines) -> String {
     input.into_iter()
-        .map(code_complexity)
+        .map(|code| code_complexity(code, 2))
         .sum::<usize>()
         .to_string()
 }
 
 fn part2(input: Lines) -> String {
-    input.take(0).count().to_string()
+    input.into_iter()
+        .map(|code| code_complexity(code, 25))
+        .sum::<usize>()
+        .to_string()
 }
 
 fn main() {
@@ -256,15 +223,8 @@ mod tests {
     #[test]
     fn test_sequence() {
         assert_eq!(
-            shortest_button_sequence("029A").into_iter()
-                .map(|s| s.len())
-                .collect_vec(),
-            [
-                "<vA<AA>>^AvAA<^A>A<v<A>>^AvA^A<vA>^A<v<A>^A>AAvA^A<v<A>A>^AAAvA<^A>A",
-                "v<<A>>^A<A>AvA<^AA>A<vAAA>^A",
-                "<A^A>^^AvvvA",
-                "029A",
-            ].map(|s| s.len())
+            shortest_button_sequence("029A", 2),
+            "<vA<AA>>^AvAA<^A>A<v<A>>^AvA^A<vA>^A<v<A>^A>AAvA^A<v<A>A>^AAAvA<^A>A".len()
         );
     }
 
@@ -282,6 +242,5 @@ mod tests {
     fn example() {
         let input = include_str!("example.txt");
         verify!(part1, input, "126384");
-        verify!(part2, input, "0");
     }
 }
