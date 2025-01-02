@@ -2,7 +2,7 @@ use advent_of_code::{create_runner, named, Named, Runner};
 use glam::I8Vec2;
 use itertools::Itertools;
 use phf::phf_map;
-use std::{iter::{once, repeat_n, RepeatN}, str::Lines};
+use std::{collections::HashMap, iter::{once, repeat_n, RepeatN}, str::Lines};
 
 type Pos = I8Vec2;
 
@@ -24,33 +24,29 @@ impl KeyMap {
             delta.y.unsigned_abs().into()
         )
     }
-    fn valid_path(&self, a: char, b: char) -> Vec<char> {
+    fn valid_paths(&self, a: char, b: char) -> Vec<String> {
         let a_pos = self.key_positions.get(&a).unwrap();
         let b_pos = self.key_positions.get(&b).unwrap();
         let delta = b_pos - a_pos;
         match (delta.x.abs() > 0, delta.y.abs() > 0) {
-            (false, false) => once('A').collect(),
-            (true, false) => Self::x_chars(&delta).chain(once('A')).collect(),
-            (false, true) => Self::y_chars(&delta).chain(once('A')).collect(),
-            (true, true) => if a_pos.x == self.invalid_position.x {
-                Self::x_chars(&delta)
-                    .chain(Self::y_chars(&delta))
-                    .chain(once('A')).collect()
-            } else {
-                // TODO this has an arbitrary preference for one of the two paths,
-                // and both need to be checked
-                Self::y_chars(&delta)
-                    .chain(Self::x_chars(&delta))
-                    .chain(once('A')).collect()
+            (false, false) => vec![once('A').collect()],
+            (true, false) => vec![Self::x_chars(&delta).chain(once('A')).collect()],
+            (false, true) => vec![Self::y_chars(&delta).chain(once('A')).collect()],
+            (true, true) => {
+                [
+                    (self.invalid_position != Pos::new(b_pos.x, a_pos.y))
+                        .then(|| Self::x_chars(&delta)
+                            .chain(Self::y_chars(&delta))
+                            .chain(once('A')).collect()
+                        ),
+                    (self.invalid_position != Pos::new(a_pos.x, b_pos.y))
+                        .then(|| Self::y_chars(&delta)
+                            .chain(Self::x_chars(&delta))
+                            .chain(once('A')).collect()
+                        ),
+                ].into_iter().flatten().collect_vec()
             }
         }
-    }
-    fn sequence(&self, code: &str) -> String {
-        once('A')
-            .chain(code.chars())
-            .tuple_windows()
-            .flat_map(|(a, b)| self.valid_path(a, b))
-            .collect()
     }
 }
 
@@ -102,6 +98,66 @@ static DIRECTIONAL_KEY_MAP: KeyMap = KeyMap{
     invalid_position: Pos{x: 0, y: 0},
 };
 
+struct KeyPadController<'a> {
+    robot: Option<&'a mut KeyPadController<'a>>,
+    keypad: &'static KeyMap,
+    cache: HashMap<String, Vec<String>>,
+}
+
+impl<'a> KeyPadController<'a> {
+    fn new(keypad: &'static KeyMap, robot: Option<&'a mut KeyPadController<'a>>) -> Self {
+        Self {
+            keypad,
+            robot,
+            cache: HashMap::new(),
+        }
+    }
+
+    fn sequence_cached(&mut self, seq: &str) -> Vec<String> {
+        match self.cache.get(seq) {
+            None => {
+                let result = self.sequence(seq);
+                self.cache.insert(seq.to_owned(), result.clone());
+                result
+            },
+            Some(result) => result.clone()
+        }
+    }
+
+    fn parent_sequence(&mut self, seq: String) -> Vec<String> {
+        match self.robot.as_mut() {
+            None => vec![seq],
+            Some(parent) => {
+                let mut result = parent.sequence_cached(&seq);
+                result.push(seq);
+                result
+            },
+        }
+    }
+
+    fn best_path_from(&mut self, a: char, b: char) -> Vec<String> {
+        self.keypad.valid_paths(a, b)
+            .into_iter()
+            .map(|path| self.parent_sequence(path))
+            .min_by_key(|paths| paths[0].len())
+            .unwrap()
+    }
+
+    fn sequence(&mut self, seq: &str) -> Vec<String> {
+        once('A')
+            .chain(seq.chars())
+            .tuple_windows()
+            .map(|(a, b)| self.best_path_from(a, b))
+            .reduce(|a, b| {
+                a.into_iter().zip(b.into_iter())
+                    .map(|(a, b)| a + &b)
+                    .collect_vec()
+            })
+            .unwrap()
+    }
+}
+
+
 /*
  * The example `029A` contains one move from 2 to 9 which requires moving on
  * both axes. From the perspective of the numeric keypad, all permutations of
@@ -124,11 +180,22 @@ static DIRECTIONAL_KEY_MAP: KeyMap = KeyMap{
  * This seems to suggest that each keypad can be done independently as long
  * as all moves on one axis are done first.
  */
-fn shortest_button_sequence(num_robot: &str) -> [String; 4] {
-    let dir_robot1 = NUMERIC_KEY_MAP.sequence(num_robot);
-    let dir_robot2 = DIRECTIONAL_KEY_MAP.sequence(&dir_robot1);
-    let dir_me = DIRECTIONAL_KEY_MAP.sequence(&dir_robot2);
-    [num_robot.to_owned(), dir_robot1, dir_robot2, dir_me]
+fn shortest_button_sequence(code: &str) -> Vec<String> {
+    let mut stage1 = &mut KeyPadController::new(
+        &DIRECTIONAL_KEY_MAP,
+        None
+    );
+    let mut stage2 = KeyPadController::new(
+        &DIRECTIONAL_KEY_MAP,
+        Some(&mut stage1)
+    );
+    let mut stage3 = KeyPadController::new(
+        &NUMERIC_KEY_MAP,
+        Some(&mut stage2)
+    );
+    let mut seqs = stage3.sequence(code);
+    seqs.push(code.to_owned());
+    seqs
 }
 
 fn code_complexity_sequence(code: &str, sequence_len: usize) -> usize {
@@ -137,7 +204,7 @@ fn code_complexity_sequence(code: &str, sequence_len: usize) -> usize {
 }
 
 fn code_complexity(code: &str) -> usize {
-    code_complexity_sequence(code, shortest_button_sequence(code).last().unwrap().len())
+    code_complexity_sequence(code, shortest_button_sequence(code)[0].len())
 }
 
 fn part1(input: Lines) -> String {
@@ -160,34 +227,43 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
+
     use super::*;
     use advent_of_code::verify;
     use rstest::rstest;
 
     #[rstest]
-    #[case(&NUMERIC_KEY_MAP, '1', '0', ">vA")]
-    #[case(&NUMERIC_KEY_MAP, '0', '1', "^<A")]
-    #[case(&NUMERIC_KEY_MAP, '1', 'A', ">>vA")]
-    #[case(&NUMERIC_KEY_MAP, 'A', '1', "^<<A")]
-    #[case(&NUMERIC_KEY_MAP, '4', 'A', ">>vvA")]
-    #[case(&NUMERIC_KEY_MAP, 'A', '4', "^^<<A")]
-    #[case(&DIRECTIONAL_KEY_MAP, '^', '<', "v<A")]
-    #[case(&DIRECTIONAL_KEY_MAP, '<', '^', ">^A")]
-    #[case(&DIRECTIONAL_KEY_MAP, 'A', '<', "v<<A")]
-    #[case(&DIRECTIONAL_KEY_MAP, '<', 'A', ">>^A")]
-    fn valid_path(#[case] key_map: &KeyMap, #[case] a: char, #[case] b: char, #[case] expected: String) {
-        assert_eq!(key_map.valid_path(a, b).into_iter().join(""), expected);
+    #[case(&NUMERIC_KEY_MAP, '1', '0', vec![">vA"])]
+    #[case(&NUMERIC_KEY_MAP, '0', '1', vec!["^<A"])]
+    #[case(&NUMERIC_KEY_MAP, '1', 'A', vec![">>vA"])]
+    #[case(&NUMERIC_KEY_MAP, 'A', '1', vec!["^<<A"])]
+    #[case(&NUMERIC_KEY_MAP, '4', 'A', vec![">>vvA"])]
+    #[case(&NUMERIC_KEY_MAP, 'A', '4', vec!["^^<<A"])]
+    #[case(&NUMERIC_KEY_MAP, '7', '6', vec![">>vA", "v>>A"])]
+    #[case(&NUMERIC_KEY_MAP, '6', '7', vec!["<<^A", "^<<A"])]
+    #[case(&DIRECTIONAL_KEY_MAP, '^', '<', vec!["v<A"])]
+    #[case(&DIRECTIONAL_KEY_MAP, '<', '^', vec![">^A"])]
+    #[case(&DIRECTIONAL_KEY_MAP, 'A', '<', vec!["v<<A"])]
+    #[case(&DIRECTIONAL_KEY_MAP, '<', 'A', vec![">>^A"])]
+    fn valid_path(#[case] key_map: &KeyMap, #[case] a: char, #[case] b: char, #[case] expected: Vec<&str>) {
+        assert_eq!(
+            key_map.valid_paths(a, b).into_iter().collect::<HashSet<String>>(),
+            expected.into_iter().map(|s| s.to_owned()).collect::<HashSet<String>>()
+        );
     }
 
     #[test]
-    fn test_shortest_button_sequence() {
+    fn test_sequence() {
         assert_eq!(
-            shortest_button_sequence("029A").map(|s| s.len()),
+            shortest_button_sequence("029A").into_iter()
+                .map(|s| s.len())
+                .collect_vec(),
             [
-                "029A",
-                "<A^A>^^AvvvA",
+                "<vA<AA>>^AvAA<^A>A<v<A>>^AvA^A<vA>^A<v<A>^A>AAvA^A<v<A>A>^AAAvA<^A>A",
                 "v<<A>>^A<A>AvA<^AA>A<vAAA>^A",
-                "<vA<AA>>^AvAA<^A>A<v<A>>^AvA^A<vA>^A<v<A>^A>AAvA^A<v<A>A>^AAAvA<^A>A"
+                "<A^A>^^AvvvA",
+                "029A",
             ].map(|s| s.len())
         );
     }
