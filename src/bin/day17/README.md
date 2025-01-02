@@ -1,4 +1,5 @@
-Day 17: Chronospatial Computer ---
+# Day 17: Chronospatial Computer
+
 The Historians push the button on their strange device, but this time, you all just feel like you're falling.
 
 "Situation critical", the device announces in a familiar voice. "Bootstrapping process failed. Initializing debugger...."
@@ -78,3 +79,27 @@ Program: 0,3,5,4,3,0
 This program outputs a copy of itself if register A is instead initialized to `117440`. (The original initial value of register A, `2024`, is ignored.)
 
 What is the lowest positive initial value for register A that causes the program to output a copy of itself?
+
+### Manual Solution
+
+Solving this problem for any arbitrary instructions is hard.
+Instead, try to solve it only for these particular input instructions.
+
+Decoded instructions:
+
+-  0 `2,4` bst B = A mod 8
+-  2 `1,7` bxl B = B xor 7
+-  4 `7,5` cdv C = A >> B
+-  6 `4,1` bxc B = B xor C
+-  8 `1,4` bxl B = B xor 4
+- 10 `5,5` out     B mod 8
+- 12 `0,3` adv A = A >> 3
+- 14 `3,0` jnz 0
+
+`A` is the only initial value that matters.
+Other registers are used for temporary calculations for each output value only.
+The program is `16` 3 bit values long, so we'll need `48` bits in the initial
+value of `A`.
+Brute force searching would require checking all possible values of this length, which would take a long time.
+However, it should be reasonable to work backwards, finding any combinations of the last 3 bits which could produce the last instruction byte, and then working backwards recursively.
+This would also require checking all possible combinations of the additional context used by the above instructions, since we don't know the final value of the `A` register either.

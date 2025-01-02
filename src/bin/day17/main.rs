@@ -3,7 +3,7 @@ use itertools::Itertools;
 use num::pow;
 use std::str::Lines;
 
-type Integer = u32;
+type Integer = u64;
 type Registers = [Integer; 3];
 struct Instruction {
     opcode: u8,
@@ -15,7 +15,6 @@ struct Computer {
     instructions: Vec<u8>,
     instruction_pointer: usize,
     output: Vec<u8>,
-    expect_instructions: bool,
 }
 
 impl Computer {
@@ -44,14 +43,7 @@ impl Computer {
             .collect_vec();
         let instruction_pointer = 0;
         let output = Vec::new();
-        let expect_instructions = false;
-        Self{registers, instructions, instruction_pointer, output, expect_instructions}
-    }
-
-    fn reset(&mut self, registers: &Registers) {
-        self.registers = *registers;
-        self.instruction_pointer = 0;
-        self.output.clear();
+        Self{registers, instructions, instruction_pointer, output}
     }
 
     fn run(&mut self) {
@@ -137,13 +129,8 @@ impl Computer {
              * by commas.)
              */
             5 => {
-                let output = (self.combo_operand(instruction.operand) % 8) as u8;
-                if self.expect_instructions && self.instructions.get(self.output.len()).is_none_or(|&expected| expected != output) {
-                    self.instructions.len()
-                } else {
-                    self.output.push(output);
-                    self.instruction_pointer + 2
-                }
+                self.output.push((self.combo_operand(instruction.operand) % 8) as u8);
+                self.instruction_pointer + 2
             }
             /* The bdv instruction (opcode 6) works exactly like the adv instruction except that
              * the result is stored in the B register. (The numerator is still read from the A
@@ -180,19 +167,57 @@ fn part1(input: Lines) -> String {
     computer.get_output()
 }
 
+/**
+ * Single step of the program loop.
+ * This can be used to test candidate values to see if they output the expected value.
+ * Uses only the bottom `10` bits of `a`.
+ */
+fn simulate_step(a: Integer) -> u8 {
+    let b = a & 7; 
+    let b = b ^ 7;
+    let c = a >> b;
+    let b = b ^ c;
+    let b = b ^ 4;
+    (b & 7) as u8
+}
+
+/**
+ * Reference implementation created by directly translating input instructions.
+ */
+#[cfg(test)]
+fn simulate(mut a: Integer) -> Vec<u8> {
+    let mut output = Vec::new();
+    while a != 0 {
+        output.push(simulate_step(a));
+        a >>= 3;
+    }
+    output
+}
+
+fn reverse_simulate(output: &[u8], a: Integer) -> Option<Integer> {
+    if output.is_empty() {
+        return Some(a);
+    }
+    // guess at values for the bottom 3 bits
+    let upper = a << 3;
+    (0..(1<<3))
+        .into_iter()
+        .map(|lower| upper | lower)
+        .filter(|&candidate| simulate_step(candidate) == output[0])
+        .find_map(|candidate| reverse_simulate(&output[1..], candidate))
+}
+
+fn find_a_register(instructions: &[u8]) -> Option<Integer> {
+    let reversed_instructions = instructions.into_iter().rev().cloned().collect_vec();
+    // 7 bits of context could be anything, try all of the possible values
+    (0..(1<<7))
+        .into_iter()
+        .find_map(|a| reverse_simulate(&reversed_instructions, a))
+}
+
 fn part2(input: Lines) -> String {
-    let mut computer = Computer::parse(input);
-    let mut registers = computer.registers;
-    computer.expect_instructions = true;
-    (0..)
-        .find(|&a| {
-            registers[0] = a;
-            computer.reset(&registers);
-            computer.run();
-            computer.output == computer.instructions
-        })
-        .unwrap()
-        .to_string()
+    let computer = Computer::parse(input);
+    find_a_register(&computer.instructions).unwrap().to_string()
 }
 
 fn main() {
@@ -214,8 +239,11 @@ mod tests {
     }
 
     #[test]
-    fn example2() {
-        let input = include_str!("example2.txt");
-        verify!(part2, input, "117440");
+    fn test_simulate() {
+        let input = include_str!("input.txt").lines();
+        let mut computer = Computer::parse(input);
+        let a = computer.registers[0];
+        computer.run();
+        assert_eq!(simulate(a), computer.output);
     }
 }
