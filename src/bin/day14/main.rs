@@ -103,7 +103,8 @@ fn part1(input: Lines) -> String {
 /**
  * Apparently
  * > the robots should arrange themselves into a picture of a Christmas tree
- * is equivalent to getting to a state where no robots overlap.
+ *
+ *  is equivalent to getting to a state where no robots overlap.
  */
 fn part2(input: Lines) -> String {
     let map = RestroomMap::parse(input);

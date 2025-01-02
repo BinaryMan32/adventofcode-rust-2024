@@ -201,17 +201,15 @@ fn reverse_simulate(output: &[u8], a: Integer) -> Option<Integer> {
     // guess at values for the bottom 3 bits
     let upper = a << 3;
     (0..(1<<3))
-        .into_iter()
         .map(|lower| upper | lower)
         .filter(|&candidate| simulate_step(candidate) == output[0])
         .find_map(|candidate| reverse_simulate(&output[1..], candidate))
 }
 
 fn find_a_register(instructions: &[u8]) -> Option<Integer> {
-    let reversed_instructions = instructions.into_iter().rev().cloned().collect_vec();
+    let reversed_instructions = instructions.iter().rev().cloned().collect_vec();
     // 7 bits of context could be anything, try all of the possible values
     (0..(1<<7))
-        .into_iter()
         .find_map(|a| reverse_simulate(&reversed_instructions, a))
 }
 
