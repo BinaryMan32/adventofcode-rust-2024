@@ -1,7 +1,6 @@
 use advent_of_code::{create_runner, named, Named, Runner};
-use itertools::iterate;
-use std::str::Lines;
-
+use itertools::{iterate, Itertools};
+use std::{collections::HashMap, str::Lines};
 
 type Secret = u64;
 
@@ -33,9 +32,36 @@ fn part1(input: Lines) -> String {
         .to_string()
 }
 
-fn part2(input: Lines) -> String {
-    input.take(0).count().to_string()
+fn buyer_sequences(secret: Secret, count: usize) -> HashMap<[i8; 4], usize> {
+    iterate(secret, |n| next_secret_number(*n))
+        .take(count + 1)
+        .map(|n| (n % 10) as i8)
+        .tuple_windows()
+        .map(|(a, b, c, d, e)| ([b - a, c - b, d - c, e - d], e as usize))
+        .fold(HashMap::new(), |mut counts, (key, count)| {
+            let _ = *counts.entry(key).or_insert(count);
+            counts
+        })
 }
+
+fn part2(input: Lines) -> String {
+    input
+        .map(|line| line.parse::<Secret>().expect("numeric"))
+        .map(|n| buyer_sequences(n, 2000))
+        .reduce(|a, b| {
+            b.into_iter().fold(a, |mut counts, (key, count)| {
+                *counts.entry(key).or_insert(0) += count;
+                counts
+            })
+        })
+        .unwrap()
+        .values()
+        .into_iter()
+        .max()
+        .unwrap()
+        .to_string()
+}     
+
 
 fn main() {
     let input = include_str!("input.txt");
@@ -80,9 +106,14 @@ mod tests {
     }
 
     #[test]
-    fn example() {
+    fn example_part1() {
         let input = include_str!("example.txt");
         verify!(part1, input, "37327623");
-        verify!(part2, input, "0");
+    }
+
+    #[test]
+    fn example_part2() {
+        let input = "1\n2\n3\n2024";
+        verify!(part2, input, "23");
     }
 }
