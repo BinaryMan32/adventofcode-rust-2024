@@ -1,6 +1,6 @@
 use advent_of_code::{create_runner, named, Named, Runner};
 use itertools::Itertools;
-use std::{collections::{HashMap, HashSet}, str::Lines};
+use std::{collections::{HashMap, HashSet, VecDeque}, iter::once, str::Lines};
 
 type Computer = String;
 
@@ -49,8 +49,49 @@ fn part1(input: Lines) -> String {
         .to_string()
 }
 
+fn all_connected(connections: &HashMap<Computer, HashSet<Computer>>, set: &HashSet<Computer>) -> HashSet<Computer> {
+    set.iter()
+        .map(|a| connections.get(a).cloned().unwrap_or_default())
+        .reduce(|a, b| {
+            a.intersection(&b).cloned().collect()
+        })
+        .unwrap_or_default()
+}
+
+fn are_connected(connections: &HashMap<Computer, HashSet<Computer>>, a_set: &HashSet<Computer>, b_set: &HashSet<Computer>) -> bool {
+    a_set.is_subset(&all_connected(connections, b_set)) &&
+        b_set.is_subset(&all_connected(connections, a_set))
+}
+
+fn largest_connected_component(connections: HashMap<Computer, HashSet<Computer>>) -> Option<HashSet<Computer>> {
+    let mut largest: Option<HashSet<Computer>> = None;
+    let mut processing: VecDeque<HashSet<Computer>> = connections.keys()
+        .sorted()
+        .map(|c| HashSet::from_iter(once(c.to_owned())))
+        .collect();
+    while let Some(a) = processing.pop_front() {
+        if let Some(b_pos) = processing.iter().position(|b| are_connected(&connections, &a, &b)) {
+            let b= processing.remove(b_pos).unwrap();
+            processing.push_back(a.union(&b)
+                .cloned()
+                .collect());
+        } else {
+            largest = [largest, Some(a)].into_iter().flatten().max_by_key(|c| c.len())
+        }
+    }
+    largest
+}
+
+fn format_largest_component(component: HashSet<Computer>) -> String {
+    component.into_iter()
+        .sorted()
+        .join(",")
+}
+
 fn part2(input: Lines) -> String {
-    input.take(0).count().to_string()
+    largest_connected_component(parse_connections(input))
+        .map(format_largest_component)
+        .unwrap_or_default()
 }
 
 fn main() {
@@ -92,6 +133,6 @@ mod tests {
     fn example() {
         let input = include_str!("example.txt");
         verify!(part1, input, "7");
-        verify!(part2, input, "0");
+        verify!(part2, input, "co,de,ka,ta");
     }
 }
